@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/kubewarden/sbomscanner/api/v1alpha1"
+	"github.com/kubewarden/sbomscanner/internal/cel"
 )
 
 const (
@@ -153,6 +154,18 @@ func validateRepositories(registry *v1alpha1.Registry) error {
 	if registry.Spec.CatalogType == v1alpha1.CatalogTypeNoCatalog && len(registry.Spec.Repositories) == 0 {
 		return errors.New("repositories must be explicitly provided when catalogType is NoCatalog")
 	}
+
+	tagEvaluator, err := cel.NewTagEvaluator()
+	if err != nil {
+		return errors.New("error instantiating tag evaluator")
+	}
+	for _, repo := range registry.Spec.Repositories {
+		for _, mc := range repo.MatchConditions {
+			if err := tagEvaluator.Validate(mc.Expression); err != nil {
+				return fmt.Errorf("match condition '%s' for repository '%s' has not a valid expression: %w", mc.Name, repo.Name, err)
+			}
+		}
+	}
 	return nil
 }
 
@@ -185,6 +198,7 @@ func validateRegistry(registry *v1alpha1.Registry) field.ErrorList {
 		fieldPath := field.NewPath("spec").Child("repositories")
 		allErrs = append(allErrs, field.Invalid(fieldPath, registry.Spec.Repositories, err.Error()))
 	}
+
 	if err := validatePlatforms(registry); err != nil {
 		filepath := field.NewPath("spec").Child("platforms")
 		allErrs = append(allErrs, field.Invalid(filepath, registry.Spec.Platforms, err.Error()))

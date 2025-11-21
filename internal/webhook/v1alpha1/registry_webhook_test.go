@@ -207,6 +207,64 @@ var registryTestCases = []registryTestCase{
 		expectedField: "spec.platforms",
 		expectedError: "is not an allowed platform",
 	},
+	{
+		name: "should deny creation when match conditions are not valid",
+		registry: &v1alpha1.Registry{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-registry",
+				Namespace: "default",
+			},
+			Spec: v1alpha1.RegistrySpec{
+				URI: "registry.test.local",
+				Repositories: []v1alpha1.Repository{
+					{
+						Name: "test-repo",
+						MatchConditions: []v1alpha1.MatchCondition{
+							{
+								Name:       "match-condition-1",
+								Expression: "tag.endsWith('-amd')",
+							},
+							{
+								Name: "match-condition-2",
+								// this expression has in invalid syntax
+								Expression: "semver(tag, true).isLessThan(semver('v1.0.0', true))...",
+							},
+						},
+					},
+				},
+			},
+		},
+		expectedField: "spec.repositories",
+		expectedError: "has not a valid expression",
+	},
+	{
+		name: "should allow creation when match conditions are valid",
+		registry: &v1alpha1.Registry{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-registry",
+				Namespace: "default",
+			},
+			Spec: v1alpha1.RegistrySpec{
+				URI: "registry.test.local",
+				Repositories: []v1alpha1.Repository{
+					{
+						Name: "test-repo",
+						MatchConditions: []v1alpha1.MatchCondition{
+							{
+								Name:       "match-condition-1",
+								Expression: "tag.endsWith('-amd')",
+							},
+							{
+								Name:       "match-condition-2",
+								Expression: "semver(tag, true).isLessThan(semver('v1.0.0-dev', true))",
+							},
+						},
+					},
+				},
+			},
+		},
+		expectedField: "spec.repositories",
+	},
 }
 
 func TestRegistryCustomValidator_ValidateCreate(t *testing.T) {
